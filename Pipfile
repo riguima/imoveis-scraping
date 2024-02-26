@@ -9,6 +9,10 @@ httpx = "*"
 selenium = "*"
 webdriver-manager = "*"
 qt-material = "*"
+pandas = "*"
+parsel = "*"
+openpyxl = "*"
+python-slugify = "*"
 
 [dev-packages]
 pytest = "*"

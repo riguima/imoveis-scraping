@@ -1,12 +1,19 @@
+import pandas as pd
 from PySide6 import QtCore, QtWidgets
+
+from imoveis_scraping.browsers.olx import OLXBrowser
+from imoveis_scraping.browsers.sub100 import Sub100Browser
+from imoveis_scraping.consts import STATES
 
 
 class MainWindow(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
-        self.setFixedSize(600, 300)
+        self.setFixedSize(300, 300)
         with open('styles.qss', 'r') as f:
             self.setStyleSheet(f.read())
+
+        self.message_box = QtWidgets.QMessageBox()
 
         self.website_label = QtWidgets.QLabel('Site:')
         self.website_combobox = QtWidgets.QComboBox()
@@ -17,23 +24,16 @@ class MainWindow(QtWidgets.QWidget):
 
         self.state_label = QtWidgets.QLabel('Estado:')
         self.state_combobox = QtWidgets.QComboBox()
+        self.state_combobox.addItems(list(STATES.values()))
         self.state_layout = QtWidgets.QHBoxLayout()
         self.state_layout.addWidget(self.state_label)
         self.state_layout.addWidget(self.state_combobox)
-        self.update_state_combobox()
-        self.website_combobox.currentTextChanged.connect(
-            self.update_state_combobox
-        )
 
         self.city_label = QtWidgets.QLabel('Cidade:')
-        self.city_combobox = QtWidgets.QComboBox()
+        self.city_input = QtWidgets.QLineEdit()
         self.city_layout = QtWidgets.QHBoxLayout()
         self.city_layout.addWidget(self.city_label)
-        self.city_layout.addWidget(self.city_combobox)
-        self.update_city_combobox()
-        self.state_combobox.currentTextChanged.connect(
-            self.update_city_combobox
-        )
+        self.city_layout.addWidget(self.city_input)
 
         self.type_label = QtWidgets.QLabel('Tipo:')
         self.type_combobox = QtWidgets.QComboBox()
@@ -57,13 +57,21 @@ class MainWindow(QtWidgets.QWidget):
         self.main_layout.addWidget(self.generate_spreadsheet_button)
 
     @QtCore.Slot()
-    def update_state_combobox(self):
-        pass
-
-    @QtCore.Slot()
-    def update_city_combobox(self):
-        pass
-
-    @QtCore.Slot()
     def generate_spreadsheet(self):
-        pass
+        self.message_box.setText('Aguarde...')
+        self.message_box.exec()
+        browsers = {
+            'Sub100': Sub100Browser(),
+            'OLX': OLXBrowser(),
+        }
+        browser = browsers[self.website_combobox.currentText()]
+        state = self.state_combobox.currentText()
+        city = self.city_input.text()
+        ad_type = self.type_combobox.currentText()
+        data = browser.get_infos(state, city, ad_type)
+        dataframe = pd.DataFrame.from_dict(data)
+        dataframe.to_excel(
+            f'result-{ad_type}-{state}-{city}.xlsx'.lower(), index=False
+        )
+        self.message_box.setText('Finalizado!')
+        self.message_box.show()

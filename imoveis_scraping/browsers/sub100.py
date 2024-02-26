@@ -1,6 +1,3 @@
-from imoveis_scraping.browsers.base import Browser
-
-
-class Sub100Browser(Browser):
-    def get_properties_infos(self, state, city):
+class Sub100Browser:
+    def get_infos(self, state, city, ad_type):
         pass
