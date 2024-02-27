@@ -65,10 +65,10 @@ class MainWindow(QtWidgets.QWidget):
         self.message_box.exec()
         self.message_box.close()
         browsers = {
-            'Sub100': Sub100Browser(),
-            'OLX': OLXBrowser(),
+            'Sub100': Sub100Browser,
+            'OLX': OLXBrowser,
         }
-        browser = browsers[self.website_combobox.currentText()]
+        browser = browsers[self.website_combobox.currentText()]()
         state = self.state_combobox.currentText()
         city = self.city_input.text()
         ad_type = self.type_combobox.currentText()
