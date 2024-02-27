@@ -1,6 +1,5 @@
 import re
 from datetime import datetime
-from itertools import count
 
 from httpx import get
 from parsel import Selector
@@ -10,7 +9,7 @@ from imoveis_scraping.consts import STATES
 
 
 class OLXBrowser:
-    def get_infos(self, state, city, ad_type):
+    def get_infos(self, state, city, ad_type, page):
         state = list(STATES.keys())[list(STATES.values()).index(state)]
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246'
@@ -45,59 +44,47 @@ class OLXBrowser:
                     city_url = url
         if city_url is None:
             return result
-        for page in count(1):
-            response = get(
-                f'{city_url}?o={page}', headers=headers, timeout=10000
-            )
+        response = get(f'{city_url}?o={page}', headers=headers, timeout=10000)
+        selector = Selector(response.text)
+        if not selector.css('.sc-74d68375-2 .olx-ad-card__link-wrapper'):
+            return result
+        for url in selector.css('.sc-74d68375-2 .olx-ad-card__link-wrapper'):
+            response = get(url.attrib['href'], headers=headers, timeout=10000)
             selector = Selector(response.text)
-            if not selector.css('.sc-74d68375-2 .olx-ad-card__link-wrapper'):
-                break
-            for url in selector.css(
-                '.sc-74d68375-2 .olx-ad-card__link-wrapper'
-            ):
-                response = get(
-                    url.attrib['href'], headers=headers, timeout=10000
+            address = ' - '.join(
+                [e.get() for e in selector.css('.ad__sc-o5hdud-2 span::text')]
+            )
+            result['Nome'].append(selector.css('.bdcWAn::text').get())
+            result['Endereço'].append(address)
+            result['Dormitórios'].append(
+                selector.css('.ad__sc-2h9gkk-3::text').get()
+            )
+            details = selector.css('.eYIDXs::text')
+            if len(details) == 3:
+                result['Área Util'].append(details[0].get())
+                result['Banheiros'].append(details[1].get())
+                result['Vagas'].append(details[2].get())
+            elif len(details) == 2 and re.findall(r'\d+m', details[0].get()):
+                result['Área Util'].append(details[0].get())
+                result['Banheiros'].append(details[1].get())
+                result['Vagas'].append('')
+            elif len(details) == 2:
+                result['Área Util'].append('')
+                result['Banheiros'].append(details[0].get())
+                result['Vagas'].append(details[1].get())
+            elif len(details) == 1:
+                result['Área Util'].append('')
+                result['Banheiros'].append(details[0].get())
+                result['Vagas'].append('')
+            elif len(details) == 0:
+                result['Área Util'].append('')
+                result['Banheiros'].append('')
+                result['Vagas'].append('')
+            result['Link'].append(url.attrib['href'])
+            result['Imagens'].append(
+                ', '.join(
+                    [e.attrib['src'] for e in selector.css('#gallery img')]
                 )
-                selector = Selector(response.text)
-                address = ' - '.join(
-                    [
-                        e.get()
-                        for e in selector.css('.ad__sc-o5hdud-2 span::text')
-                    ]
-                )
-                result['Nome'].append(selector.css('.bdcWAn::text').get())
-                result['Endereço'].append(address)
-                result['Dormitórios'].append(
-                    selector.css('.ad__sc-2h9gkk-3::text').get()
-                )
-                details = selector.css('.eYIDXs::text')
-                if len(details) == 3:
-                    result['Área Util'].append(details[0].get())
-                    result['Banheiros'].append(details[1].get())
-                    result['Vagas'].append(details[2].get())
-                elif len(details) == 2 and re.findall(
-                    r'\d+m', details[0].get()
-                ):
-                    result['Área Util'].append(details[0].get())
-                    result['Banheiros'].append(details[1].get())
-                    result['Vagas'].append('')
-                elif len(details) == 2:
-                    result['Área Util'].append('')
-                    result['Banheiros'].append(details[0].get())
-                    result['Vagas'].append(details[1].get())
-                elif len(details) == 1:
-                    result['Área Util'].append('')
-                    result['Banheiros'].append(details[0].get())
-                    result['Vagas'].append('')
-                elif len(details) == 0:
-                    result['Área Util'].append('')
-                    result['Banheiros'].append('')
-                    result['Vagas'].append('')
-                result['Link'].append(url.attrib['href'])
-                result['Imagens'].append(
-                    ', '.join(
-                        [e.attrib['src'] for e in selector.css('#gallery img')]
-                    )
-                )
-                result['Data'].append(datetime.now().strftime('%d/%m/%Y'))
+            )
+            result['Data'].append(datetime.now().strftime('%d/%m/%Y'))
         return result

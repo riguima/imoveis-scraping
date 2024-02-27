@@ -1,3 +1,6 @@
+from itertools import count
+from pathlib import Path
+
 import pandas as pd
 from PySide6 import QtCore, QtWidgets
 
@@ -60,6 +63,7 @@ class MainWindow(QtWidgets.QWidget):
     def generate_spreadsheet(self):
         self.message_box.setText('Aguarde...')
         self.message_box.exec()
+        self.message_box.close()
         browsers = {
             'Sub100': Sub100Browser(),
             'OLX': OLXBrowser(),
@@ -68,10 +72,17 @@ class MainWindow(QtWidgets.QWidget):
         state = self.state_combobox.currentText()
         city = self.city_input.text()
         ad_type = self.type_combobox.currentText()
-        data = browser.get_infos(state, city, ad_type)
-        dataframe = pd.DataFrame.from_dict(data)
-        dataframe.to_excel(
-            f'result-{ad_type}-{state}-{city}.xlsx'.lower(), index=False
-        )
+        path = f'result-{ad_type}-{state}-{city}.xlsx'.lower()
+        for page in count(1):
+            data = browser.get_infos(state, city, ad_type, page)
+            if data['Nome'] == []:
+                break
+            dataframe = pd.DataFrame.from_dict(data)
+            if Path(path).exists():
+                dataframe_excel = pd.read_excel(path)
+                final_dataframe = pd.concat([dataframe_excel, dataframe])
+                final_dataframe.to_excel(path, index=False)
+            else:
+                dataframe.to_excel(path, index=False)
         self.message_box.setText('Finalizado!')
         self.message_box.show()
