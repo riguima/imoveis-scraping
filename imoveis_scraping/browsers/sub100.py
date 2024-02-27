@@ -23,7 +23,7 @@ class Sub100Browser:
             service=Service(ChromeDriverManager().install()), options=options
         )
 
-    def get_infos(self, state, city, ad_type, page):
+    def get_infos(self, state, city, ad_type, property_type, page):
         state = list(STATES.keys())[list(STATES.values()).index(state)]
         urls = []
         result = {
@@ -40,7 +40,7 @@ class Sub100Browser:
         }
         ad_type = 'locacao' if ad_type == 'Aluguel' else ad_type
         self.driver.get(
-            f'https://sub100.com.br/imoveis/{ad_type.lower()}/residenciais/{slugify(city)}-{state}/pagina-{page}'
+            f'https://sub100.com.br/imoveis/{ad_type.lower()}/{slugify(property_type)}/{slugify(city)}-{state}/pagina-{page}'
         )
         try:
             self.find_elements('.result--body')
