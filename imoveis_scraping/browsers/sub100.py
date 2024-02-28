@@ -88,6 +88,7 @@ class Sub100Browser:
                     'Link',
                     'Imagens',
                     'Data',
+                    'Tipo',
                 ]
             ]
             try:

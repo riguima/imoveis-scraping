@@ -46,7 +46,6 @@ class RunThread(QtCore.QThread):
                 data = browser.get_infos(state, city, ad_type, page)
             if data['Nome'] == []:
                 break
-            breakpoint()
             dataframe = pd.DataFrame.from_dict(data)
             if Path(path).exists():
                 dataframe_excel = pd.read_excel(path)
