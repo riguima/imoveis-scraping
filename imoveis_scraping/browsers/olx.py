@@ -57,13 +57,13 @@ class OLXBrowser:
                 [e.get() for e in selector.css('.ad__sc-o5hdud-2 span::text')]
             )
             result['Nome'].append(selector.css('.bdcWAn::text').get())
+            description = '\n'.join(
+                selector.css('.ad__sc-2mjlki-1::text').get().split('\n')[1:]
+            ).strip()
+            result['Descrição'].append(description)
             result['Valor'].append(
                 selector.css('.olx-text--title-large::text').get()
             )
-            description = '\n'.join(
-                selector.css('.ad__sc-2mjlki-1::text').get().split('\n')[1:]
-            )
-            result['Descrição'].append(description)
             result['Endereço'].append(address)
             result['Dormitórios'].append(
                 selector.css('.ad__sc-2h9gkk-3::text').get()

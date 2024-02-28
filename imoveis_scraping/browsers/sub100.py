@@ -30,7 +30,10 @@ class Sub100Browser:
         urls = []
         result = {
             'Nome': [],
+            'Valor': [],
             'Endereço': [],
+            'Nome Contato': [],
+            'Telefone Contato': [],
             'Dormitórios': [],
             'Banheiros': [],
             'Vagas': [],
@@ -46,6 +49,7 @@ class Sub100Browser:
             'Imagens': [],
             'Data': [],
             'Tipo': [],
+            'Sub-Tipo': [],
         }
         ad_type = 'locacao' if ad_type == 'Aluguel' else ad_type
         self.driver.get(
@@ -76,6 +80,17 @@ class Sub100Browser:
                     e.text for e in self.find_elements('.col-12 h2')[:2]
                 )
             )
+            result['Nome Contato'].append(
+                self.find_element('#__BVID__112 h5').text
+            )
+            try:
+                result['Telefone Contato'].append(
+                    self.find_element('.btn-outline-success', wait=5).text
+                )
+            except TimeoutException:
+                result['Telefone Contato'].append(
+                    self.find_element('a .btn-outline-primary', wait=5).text
+                )
             labels = []
             details = [
                 key
@@ -84,11 +99,15 @@ class Sub100Browser:
                 not in [
                     'Nome',
                     'Endereço',
+                    'Nome Contato',
+                    'Telefone Contato',
+                    'Valor',
                     'Items Condomínio',
                     'Link',
                     'Imagens',
                     'Data',
                     'Tipo',
+                    'Sub-Tipo',
                 ]
             ]
             try:
@@ -107,10 +126,8 @@ class Sub100Browser:
                     result[detail].append('')
             have_condominium_items = False
             for select in self.find_elements('.select-container'):
-                if (
-                    self.find_element('.text-primary', element=select).text
-                    == 'Meu Condomínio'
-                ):
+                text = self.find_element('.text-primary', element=select).text
+                if text == 'Meu Condomínio':
                     result['Items Condomínio'].append(
                         str(
                             len(
@@ -121,7 +138,12 @@ class Sub100Browser:
                         )
                     )
                     have_condominium_items = True
-                    break
+                elif 'Valor' in text:
+                    result['Valor'].append(
+                        self.find_elements('.text-primary', element=select)[
+                            1
+                        ].text
+                    )
             if not have_condominium_items:
                 result['Items Condomínio'].append('0')
             result['Link'].append(url)
@@ -151,6 +173,11 @@ class Sub100Browser:
                 result['Imagens'].append('')
             result['Data'].append(datetime.now().strftime('%d/%m/%Y'))
             result['Tipo'].append(property_type.title())
+            result['Sub-Tipo'].append(
+                self.find_elements('div.d-lg-block a')[-1].get_attribute(
+                    'textContent'
+                )
+            )
         return result
 
     def find_element(self, selector, element=None, wait=10):
