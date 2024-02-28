@@ -18,6 +18,15 @@ class MainWindow(QtWidgets.QWidget):
 
         self.message_box = QtWidgets.QMessageBox()
 
+        self.destination_folder_label = QtWidgets.QLabel('Pasta:')
+        self.destination_folder_input = QtWidgets.QLineEdit()
+        self.destination_folder_button = QtWidgets.QPushButton('Selecionar')
+        self.destination_folder_button.clicked.connect(self.choose_directory)
+        self.destination_folder_layout = QtWidgets.QHBoxLayout()
+        self.destination_folder_layout.addWidget(self.destination_folder_label)
+        self.destination_folder_layout.addWidget(self.destination_folder_input)
+        self.destination_folder_layout.addWidget(self.destination_folder_button)
+
         self.website_label = QtWidgets.QLabel('Site:')
         self.website_combobox = QtWidgets.QComboBox()
         self.website_combobox.addItems(['Sub100', 'OLX'])
@@ -70,6 +79,7 @@ class MainWindow(QtWidgets.QWidget):
         )
 
         self.main_layout = QtWidgets.QVBoxLayout(self)
+        self.main_layout.addLayout(self.destination_folder_layout)
         self.main_layout.addLayout(self.website_layout)
         self.main_layout.addLayout(self.state_layout)
         self.main_layout.addLayout(self.city_layout)
@@ -77,6 +87,10 @@ class MainWindow(QtWidgets.QWidget):
         self.main_layout.addLayout(self.property_type_layout)
         self.main_layout.addLayout(self.page_layout)
         self.main_layout.addWidget(self.generate_spreadsheet_button)
+
+    @QtCore.Slot()
+    def choose_directory(self):
+        self.destination_folder_input.setText(QtWidgets.QFileDialog.getExistingDirectory())
 
     @QtCore.Slot()
     def generate_spreadsheet(self):
@@ -92,7 +106,10 @@ class MainWindow(QtWidgets.QWidget):
         city = self.city_input.text()
         ad_type = self.type_combobox.currentText()
         property_type = self.property_type_combobox.currentText()
-        path = f'result-{ad_type}-{state}-{city}.xlsx'.lower()
+        if self.destination_folder_input.text():
+            path = Path(self.destination_folder_input.text()) / f'result-{ad_type}-{state}-{city}.xlsx'.lower()
+        else:
+            path = f'result-{ad_type}-{state}-{city}.xlsx'.lower()
         for page in count(int(self.page_input.text())):
             if browsers[self.website_combobox.currentText()] == Sub100Browser:
                 data = browser.get_infos(
