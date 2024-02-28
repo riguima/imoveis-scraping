@@ -19,6 +19,8 @@ from imoveis_scraping.consts import STATES
 class Sub100Browser:
     def __init__(self):
         options = Options()
+        options.add_argument('--headless')
+        options.add_argument('--no-sandbox')
         self.driver = Chrome(
             service=Service(ChromeDriverManager().install()), options=options
         )
@@ -34,9 +36,16 @@ class Sub100Browser:
             'Vagas': [],
             'Área Privativa': [],
             'Área Total': [],
+            'Área Do Terreno': [],
+            'Pavimentos': [],
+            'Unidades': [],
+            'Torres': [],
+            'Andares': [],
+            'Items Condomínio': [],
             'Link': [],
             'Imagens': [],
             'Data': [],
+            'Tipo': [],
         }
         ad_type = 'locacao' if ad_type == 'Aluguel' else ad_type
         self.driver.get(
@@ -69,40 +78,78 @@ class Sub100Browser:
             )
             labels = []
             details = [
-                'Dormitórios',
-                'Banheiros',
-                'Vagas',
-                'Área Privativa',
-                'Área Total',
+                key
+                for key in result
+                if key
+                not in [
+                    'Nome',
+                    'Endereço',
+                    'Items Condomínio',
+                    'Link',
+                    'Imagens',
+                    'Data',
+                ]
             ]
-            for detail in self.find_elements('.flex-50 .col-12'):
-                label = self.find_element('label', element=detail).text.title()
-                if label in details:
-                    value = self.find_element('span', element=detail).text
-                    labels.append(label)
-                    result[label].append(value)
+            try:
+                for detail in self.find_elements('.flex-50 .col-12', wait=5):
+                    label = self.find_element(
+                        'label', element=detail
+                    ).text.title()
+                    if label in details:
+                        value = self.find_element('span', element=detail).text
+                        labels.append(label)
+                        result[label].append(value)
+            except TimeoutException:
+                pass
             for detail in details:
                 if detail not in labels:
                     result[detail].append('')
+            have_condominium_items = False
+            for select in self.find_elements('.select-container'):
+                if (
+                    self.find_element('.text-primary', element=select).text
+                    == 'Meu Condomínio'
+                ):
+                    result['Items Condomínio'].append(
+                        str(
+                            len(
+                                self.find_elements(
+                                    '.align-items-center', element=select
+                                )
+                            )
+                        )
+                    )
+                    have_condominium_items = True
+                    break
+            if not have_condominium_items:
+                result['Items Condomínio'].append('0')
             result['Link'].append(url)
+            have_images = True
             while True:
                 try:
                     self.find_element('.btn-gallery').click()
                     break
                 except ElementClickInterceptedException:
                     continue
-            images_urls = []
-            for image in count(0):
-                try:
-                    images_urls.append(
-                        self.find_element(
-                            f'#image-{image}', wait=5
-                        ).get_attribute('src')
-                    )
                 except TimeoutException:
-                    result['Imagens'].append(', '.join(images_urls))
+                    have_images = False
                     break
+            if have_images:
+                images_urls = []
+                for image in count(0):
+                    try:
+                        images_urls.append(
+                            self.find_element(
+                                f'#image-{image}', wait=3
+                            ).get_attribute('src')
+                        )
+                    except TimeoutException:
+                        result['Imagens'].append(', '.join(images_urls))
+                        break
+            else:
+                result['Imagens'].append('')
             result['Data'].append(datetime.now().strftime('%d/%m/%Y'))
+            result['Tipo'].append(property_type.title())
         return result
 
     def find_element(self, selector, element=None, wait=10):

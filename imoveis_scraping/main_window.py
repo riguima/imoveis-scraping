@@ -9,6 +9,61 @@ from imoveis_scraping.browsers.sub100 import Sub100Browser
 from imoveis_scraping.consts import STATES
 
 
+class RunThread(QtCore.QThread):
+    finished = QtCore.Signal()
+    show_message = QtCore.Signal()
+
+    def __init__(self, widget):
+        super().__init__()
+        self.widget = widget
+
+    def run(self):
+        browsers = {
+            'Sub100': Sub100Browser,
+            'OLX': OLXBrowser,
+        }
+        browser = browsers[self.widget.website_combobox.currentText()]()
+        state = self.widget.state_combobox.currentText()
+        city = self.widget.city_input.text()
+        ad_type = self.widget.type_combobox.currentText()
+        property_type = self.widget.property_type_combobox.currentText()
+        if self.widget.destination_folder_input.text():
+            path = (
+                Path(self.widget.destination_folder_input.text())
+                / f'result-{ad_type}-{state}-{city}.xlsx'.lower()
+            )
+        else:
+            path = f'result-{ad_type}-{state}-{city}.xlsx'.lower()
+        for page in count(int(self.widget.page_input.text())):
+            if (
+                browsers[self.widget.website_combobox.currentText()]
+                == Sub100Browser
+            ):
+                data = browser.get_infos(
+                    state, city, ad_type, property_type, page
+                )
+            else:
+                data = browser.get_infos(state, city, ad_type, page)
+            if data['Nome'] == []:
+                break
+            breakpoint()
+            dataframe = pd.DataFrame.from_dict(data)
+            if Path(path).exists():
+                dataframe_excel = pd.read_excel(path)
+                final_dataframe = pd.concat([dataframe_excel, dataframe])
+                final_dataframe.to_excel(path, index=False)
+                self.widget.message_box.setText(
+                    f'{len(final_dataframe["Nome"])} Dados Coletados!'
+                )
+            else:
+                self.widget.message_box.setText(
+                    f'{len(data["Nome"])} Dados Coletados!'
+                )
+                dataframe.to_excel(path, index=False)
+            self.show_message.emit()
+        self.finished.emit()
+
+
 class MainWindow(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
@@ -18,6 +73,10 @@ class MainWindow(QtWidgets.QWidget):
 
         self.message_box = QtWidgets.QMessageBox()
 
+        self.run_thread = RunThread(self)
+        self.run_thread.finished.connect(self.show_finished_message)
+        self.run_thread.show_message.connect(self.message_box.show)
+
         self.destination_folder_label = QtWidgets.QLabel('Pasta:')
         self.destination_folder_input = QtWidgets.QLineEdit()
         self.destination_folder_button = QtWidgets.QPushButton('Selecionar')
@@ -25,7 +84,9 @@ class MainWindow(QtWidgets.QWidget):
         self.destination_folder_layout = QtWidgets.QHBoxLayout()
         self.destination_folder_layout.addWidget(self.destination_folder_label)
         self.destination_folder_layout.addWidget(self.destination_folder_input)
-        self.destination_folder_layout.addWidget(self.destination_folder_button)
+        self.destination_folder_layout.addWidget(
+            self.destination_folder_button
+        )
 
         self.website_label = QtWidgets.QLabel('Site:')
         self.website_combobox = QtWidgets.QComboBox()
@@ -57,7 +118,7 @@ class MainWindow(QtWidgets.QWidget):
         self.property_type_label = QtWidgets.QLabel('Tipo de Propriedade:')
         self.property_type_combobox = QtWidgets.QComboBox()
         self.property_type_combobox.addItems(
-            ['Residenciais', 'Terrenos e Áreas']
+            ['Residenciais', 'Comerciais', 'Terrenos e Áreas']
         )
         self.property_type_layout = QtWidgets.QHBoxLayout()
         self.property_type_layout.addWidget(self.property_type_label)
@@ -90,41 +151,16 @@ class MainWindow(QtWidgets.QWidget):
 
     @QtCore.Slot()
     def choose_directory(self):
-        self.destination_folder_input.setText(QtWidgets.QFileDialog.getExistingDirectory())
+        self.destination_folder_input.setText(
+            QtWidgets.QFileDialog.getExistingDirectory()
+        )
 
     @QtCore.Slot()
     def generate_spreadsheet(self):
         self.message_box.setText('Aguarde...')
         self.message_box.exec()
-        self.message_box.close()
-        browsers = {
-            'Sub100': Sub100Browser,
-            'OLX': OLXBrowser,
-        }
-        browser = browsers[self.website_combobox.currentText()]()
-        state = self.state_combobox.currentText()
-        city = self.city_input.text()
-        ad_type = self.type_combobox.currentText()
-        property_type = self.property_type_combobox.currentText()
-        if self.destination_folder_input.text():
-            path = Path(self.destination_folder_input.text()) / f'result-{ad_type}-{state}-{city}.xlsx'.lower()
-        else:
-            path = f'result-{ad_type}-{state}-{city}.xlsx'.lower()
-        for page in count(int(self.page_input.text())):
-            if browsers[self.website_combobox.currentText()] == Sub100Browser:
-                data = browser.get_infos(
-                    state, city, ad_type, property_type, page
-                )
-            else:
-                data = browser.get_infos(state, city, ad_type, page)
-            if data['Nome'] == []:
-                break
-            dataframe = pd.DataFrame.from_dict(data)
-            if Path(path).exists():
-                dataframe_excel = pd.read_excel(path)
-                final_dataframe = pd.concat([dataframe_excel, dataframe])
-                final_dataframe.to_excel(path, index=False)
-            else:
-                dataframe.to_excel(path, index=False)
+        self.run_thread.start()
+
+    def show_finished_message(self):
         self.message_box.setText('Finalizado!')
         self.message_box.show()

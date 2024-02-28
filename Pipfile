@@ -13,6 +13,7 @@ pandas = "*"
 parsel = "*"
 openpyxl = "*"
 python-slugify = "*"
+rich = "*"
 
 [dev-packages]
 pytest = "*"
