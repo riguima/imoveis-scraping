@@ -1,6 +1,9 @@
+import os
+import re
 from datetime import datetime
 from itertools import count
 
+from httpx import get
 from selenium.common.exceptions import (ElementClickInterceptedException,
                                         StaleElementReferenceException,
                                         TimeoutException)
@@ -25,16 +28,34 @@ class Sub100Browser:
             service=Service(ChromeDriverManager().install()), options=options
         )
 
-    def get_infos(self, state, city, ad_type, property_type, page):
+    def get_infos(
+        self,
+        state,
+        city,
+        ad_type,
+        property_type,
+        sub_type,
+        page,
+        ads_count,
+        folder,
+    ):
         state = list(STATES.keys())[list(STATES.values()).index(state)]
         urls = []
         result = {
-            'Nome': [],
-            'Valor': [],
+            'Elemento Amostral': [],
+            'Código Do Anúncio': [],
+            'Data': [],
+            'Tipo': [],
+            'Sub-Tipo': [],
+            'Nome Do Anúncio': [],
+            'Descrição': [],
             'Endereço': [],
             'Nome Contato': [],
             'Telefone Contato': [],
+            'Bairro': [],
             'Dormitórios': [],
+            'Suítes': [],
+            'Quartos': [],
             'Banheiros': [],
             'Vagas': [],
             'Área Privativa': [],
@@ -47,14 +68,18 @@ class Sub100Browser:
             'Items Condomínio': [],
             'Link': [],
             'Imagens': [],
-            'Data': [],
-            'Tipo': [],
-            'Sub-Tipo': [],
+            'Valor': [],
+            'Valor Unitário': [],
         }
         ad_type = 'locacao' if ad_type == 'Aluguel' else ad_type
-        self.driver.get(
-            f'https://sub100.com.br/imoveis/{ad_type.lower()}/{slugify(property_type)}/{slugify(city)}-{state}/pagina-{page}'
-        )
+        if sub_type == 'Todos':
+            self.driver.get(
+                f'https://sub100.com.br/imoveis/{ad_type.lower()}/{slugify(property_type)}/{slugify(city)}-{state}/pagina-{page}'
+            )
+        else:
+            self.driver.get(
+                f'https://sub100.com.br/imoveis/{ad_type.lower()}/{slugify(sub_type)}/{slugify(city)}-{state}/pagina-{page}'
+            )
         try:
             self.find_elements('.result--body')
         except TimeoutException:
@@ -70,11 +95,20 @@ class Sub100Browser:
                 break
             except StaleElementReferenceException:
                 continue
-        for url in urls:
+        for e, url in enumerate(urls):
+            if e == ads_count and ads_count != 0:
+                break
             self.driver.get(url)
             while self.find_element('.title').text == '':
                 continue
-            result['Nome'].append(self.find_element('.title').text)
+            result['Elemento Amostral'].append(
+                f'EA{len(result["Elemento Amostral"]) + 1}'
+            )
+            result['Código Do Anúncio'].append(
+                re.findall(r'imoveis/(.+?)/', self.driver.current_url)[0]
+            )
+            result['Nome Do Anúncio'].append(self.find_element('.title').text)
+            result['Descrição'].append(self.find_element('p.mt-3').text)
             result['Endereço'].append(
                 ' - '.join(
                     e.text for e in self.find_elements('.col-12 h2')[:2]
@@ -91,17 +125,27 @@ class Sub100Browser:
                 result['Telefone Contato'].append(
                     self.find_element('a .btn-outline-primary', wait=5).text
                 )
+            result['Bairro'].append(
+                self.find_elements('.col-12 h2')[1].text.split(',')[0]
+            )
             labels = []
             details = [
                 key
                 for key in result
                 if key
                 not in [
-                    'Nome',
+                    'Elemento Amostral',
+                    'Código Do Anúncio',
+                    'Nome Do Anúncio',
+                    'Descrição',
                     'Endereço',
                     'Nome Contato',
                     'Telefone Contato',
+                    'Bairro',
+                    'Suítes',
+                    'Quartos',
                     'Valor',
+                    'Valor Unitário',
                     'Items Condomínio',
                     'Link',
                     'Imagens',
@@ -116,7 +160,18 @@ class Sub100Browser:
                         'label', element=detail
                     ).text.title()
                     if label in details:
-                        value = self.find_element('span', element=detail).text
+                        try:
+                            value = int(
+                                self.find_element('span', element=detail).text
+                            )
+                        except ValueError:
+                            value = self.find_element(
+                                'span', element=detail
+                            ).text
+                            if 'm²' in value:
+                                value = float(
+                                    value.split(' ')[0].replace(',', '.')
+                                )
                         labels.append(label)
                         result[label].append(value)
             except TimeoutException:
@@ -124,6 +179,16 @@ class Sub100Browser:
             for detail in details:
                 if detail not in labels:
                     result[detail].append('')
+            suits = re.findall(r'(\d+) Suíte', result['Dormitórios'][-1])
+            bedrooms = re.findall(r'(\d+) Quarto', result['Dormitórios'][-1])
+            if suits:
+                result['Suítes'].append(int(suits[0]))
+            else:
+                result['Suítes'].append('')
+            if bedrooms:
+                result['Quartos'].append(int(bedrooms[0]))
+            else:
+                result['Quartos'].append('')
             have_condominium_items = False
             for select in self.find_elements('.select-container'):
                 text = self.find_element('.text-primary', element=select).text
@@ -139,11 +204,16 @@ class Sub100Browser:
                     )
                     have_condominium_items = True
                 elif 'Valor' in text:
+                    value = self.find_elements(
+                        '.text-primary', element=select
+                    )[1].text
                     result['Valor'].append(
-                        self.find_elements('.text-primary', element=select)[
-                            1
-                        ].text
+                        float(value[3:].replace('.', '').replace(',', '.'))
                     )
+                    for area in [result['Área Privativa'][-1], result['Área Do Terreno'][-1], result['Área Total'][-1]]:
+                        if area != '':
+                            result['Valor Unitário'].append(round(result['Valor'][-1] / area, 2))
+                            break
             if not have_condominium_items:
                 result['Items Condomínio'].append('0')
             result['Link'].append(url)
@@ -161,11 +231,19 @@ class Sub100Browser:
                 images_urls = []
                 for image in count(0):
                     try:
-                        images_urls.append(
-                            self.find_element(
-                                f'#image-{image}', wait=3
-                            ).get_attribute('src')
+                        image_url = self.find_element(
+                            f'#image-{image}', wait=3
+                        ).get_attribute('src')
+                        images_urls.append(image_url)
+                        os.makedirs(
+                            f'{folder}/{result["Código Do Anúncio"][-1]}',
+                            exist_ok=True,
                         )
+                        with open(
+                            f'{folder}/{result["Código Do Anúncio"][-1]}/image-{image}{image_url[-4:]}',
+                            'wb',
+                        ) as f:
+                            f.write(get(image_url).content)
                     except TimeoutException:
                         result['Imagens'].append(', '.join(images_urls))
                         break
